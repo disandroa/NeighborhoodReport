@@ -21,12 +21,1644 @@ library(tidycensus)
 library(sf)
 library(ggplot2)
 library(kableExtra)
+library(ghibli)
+library(ggtext)
+library(glue)
+library(ggalluvial)
+library(patchwork)
 
 # read in API
 census_api_key("f2855a6037284cb9cbed55e96e6b99be17ee05c6", overwrite = TRUE, install = T)
+
+# set color palette
+# mononoke medium from the ghibli package
+# ghibli_palettes$MononokeMedium
+colors <- c("#06141FFF", "#742C14FF", "#3D4F7DFF", "#657060FF", "#CD4F38FF", "#E48C2AFF", "#EAD890FF")
+
+# philly CRS
+my_crs <- 'EPSG:2272'
 
 ```
 
 # Quantitative Analyses
 
 For our neighborhood health report, we will be looking at how the demographics of Chinatown have changed over time.
+
+## Census Data
+
+From the Census data, we want 
+
+```{r load_census_data}
+# variables of interest
+# total population
+# age groups
+# white, asian, black, AI/AN, NHPI, Chinese
+# rent burden: gross rent as percentage of household income (GRAPI); > 30% = rent-burdened and > 50% = severely rent-burdened
+# median HH income
+
+# loop for loading in data
+for (yr in 10:23) {
+    year <- as.numeric(paste0("20", yr))
+    df_name <- paste0("tracts", yr)
+    
+    # for 2013-2014:
+    if (yr <= 14) {
+      tracts <- get_acs(geography = "tract",
+                        variables = c("B01001_001E", # total population
+                                      "B01001A_001E", # White population
+                                      "B01001H_001E", # white, non-latine
+                                      "B01001B_001E", # Black population
+                                      "B01001C_001E", # AI/AN population
+                                      "B01001D_001E", # Asian population
+                                      "B01001E_001E", # NHPI population
+                                      "B01001I_001E", # latine
+                                      
+                                      # all NA
+                                      # "B98013_001E", # total pop (race/ethn)
+                                      # "B98013_002E", # white, not latino (race/ethn)
+                                      # "B98013_003E", # black, not latino (race/ethn)
+                                      # "B98013_004E", # ai/an, not latino (race/ethn)
+                                      # "B98013_005E", # asian, not latino (race/ethn)
+                                      # "B98013_006E", # nhpi, not latino (race/ethn)
+                                      # "B98013_007E", # latino (race/ethn)
+                                      
+                                      "B02006_005E", # total population, chinese
+                                      
+                                      "B05002_002E", # US-born
+                                      "B05002_013E", # foreign-born
+                                      
+                                      "B01001_002E", # total male
+                                      "B01001_003E", # male; age < 5
+                                      "B01001_004E", # male; age 5-9
+                                      "B01001_005E", # male; age 10-14
+                                      "B01001_006E", # male; age 15-17
+                                      "B01001_007E", # male; age 18-19
+                                      "B01001_008E", # male; age 20
+                                      "B01001_009E", # male; age 21
+                                      "B01001_010E", # male; age 22-24
+                                      "B01001_011E", # male; age 25-29
+                                      "B01001_012E", # male; age 30-34
+                                      "B01001_013E", # male; age 35-39
+                                      "B01001_014E", # male; age 40-44
+                                      "B01001_015E", # male; age 45-49
+                                      "B01001_016E", # male; age 50-54
+                                      "B01001_017E", # male; age 55-59
+                                      "B01001_018E", # male; age 60-61
+                                      "B01001_019E", # male; age 62-64
+                                      "B01001_020E", # male; age 65-66
+                                      "B01001_021E", # male; age 67-69
+                                      "B01001_022E", # male; age 70-74
+                                      "B01001_023E", # male; age 75-79
+                                      "B01001_024E", # male; age 80-84
+                                      "B01001_025E", # male; age >= 85
+                                      
+                                      "B01001_026E", # total female
+                                      "B01001_027E", # female; age < 5
+                                      "B01001_028E", # female; age 5-9
+                                      "B01001_029E", # female; age 10-14
+                                      "B01001_030E", # female; age 15-17
+                                      "B01001_031E", # female; age 18-19
+                                      "B01001_032E", # female; age 20
+                                      "B01001_033E", # female; age 21
+                                      "B01001_034E", # female; age 22-24
+                                      "B01001_035E", # female; age 25-29
+                                      "B01001_036E", # female; age 30-34
+                                      "B01001_037E", # female; age 35-39
+                                      "B01001_038E", # female; age 40-44
+                                      "B01001_039E", # female; age 45-49
+                                      "B01001_040E", # female; age 50-54
+                                      "B01001_041E", # female; age 55-59
+                                      "B01001_042E", # female; age 60-61
+                                      "B01001_043E", # female; age 62-64
+                                      "B01001_044E", # female; age 65-66
+                                      "B01001_045E", # female; age 67-69
+                                      "B01001_046E", # female; age 70-74
+                                      "B01001_047E", # female; age 75-79
+                                      "B01001_048E", # female; age 80-84
+                                      "B01001_049E", # female; age >= 85
+                                      
+                                      "B19019_001E", # med HH income, total
+                                      "B19001_002E", # HH income < $10k
+                                      "B19001_003E", # HH income $10k-14k
+                                      "B19001_004E", # HH income $15k-19k
+                                      "B19001_005E", # HH income $20k-24k
+                                      "B19001_006E", # HH income $25k-29k
+                                      "B19001_007E", # HH income $30k-34k
+                                      "B19001_008E", # HH income $35k-39k
+                                      "B19001_009E", # HH income $40k-44k
+                                      "B19001_010E", # HH income $45k-49k
+                                      "B19001_011E", # HH income $50k-59k
+                                      "B19001_012E", # HH income $60k-74k
+                                      "B19001_013E", # HH income $75k-99k
+                                      "B19001_014E", # HH income $100k-124k
+                                      "B19001_015E", # HH income $125k-149k
+                                      "B19001_016E", # HH income $150k-199k
+                                      "B19001_017E", # HH income $200,000 or more
+                                      
+                                      "B25070_001E", # gross rent as %age of HH income (GRAPI) total
+                                      "B25070_002E", # GRAPI < 10%
+                                      "B25070_003E", # GRAPI < 15%
+                                      "B25070_004E", # GRAPI < 20%
+                                      "B25070_005E", # GRAPI < 25%
+                                      "B25070_006E", # GRAPI < 30%
+                                      "B25070_007E", # GRAPI < 35%
+                                      "B25070_008E", # GRAPI < 40%
+                                      "B25070_009E", # GRAPI < 50%
+                                      "B25070_010E" # GRAPI >= 50%
+                                      ),
+                        year = year,
+                        state = 42,
+                        county = 101,
+                        survey = "acs5",
+                        # geometry = T,
+                        output = "wide") %>%
+        # st_transform(crs = my_crs) %>%
+        rename(total_pop = B01001_001E,
+               white_pop = B01001A_001E,
+               white_nonlatine_pop = B01001H_001E,
+               black_pop = B01001B_001E,
+               AIAN_pop = B01001C_001E,
+               asian_pop = B01001D_001E,
+               NHPI_pop = B01001E_001E,
+               latine_pop = B01001I_001E,
+               
+               # all NA
+               # total_pop_ethn = B98013_001E,
+               # white_notlatine = B98013_002E,
+               # black_notlatine = B98013_003E,
+               # AIAN_notlatine = B98013_004E,
+               # asian_notlatine = B98013_005E,
+               # nhpi_notlatine = B98013_006E,
+               # latine = B98013_007E,
+               
+               chinese = B02006_005E,
+               
+               USborn = B05002_002E,
+               foreignborn = B05002_013E,
+               
+               male_total = B01001_002E,
+               male_05orless = B01001_003E,
+               male_05_9 = B01001_004E,
+               male_10_14 = B01001_005E,
+               male_15_17 = B01001_006E,
+               male_18_19 = B01001_007E,
+               male_20 = B01001_008E,
+               male_21 = B01001_009E,
+               male_22_24 = B01001_010E,
+               male_25_29 = B01001_011E,
+               male_30_34 = B01001_012E,
+               male_35_39 = B01001_013E,
+               male_40_44 = B01001_014E,
+               male_45_49 = B01001_015E,
+               male_50_54 = B01001_016E,
+               male_55_59 = B01001_017E,
+               male_60_61 = B01001_018E,
+               male_62_64 = B01001_019E,
+               male_65_66 = B01001_020E,
+               male_67_69 = B01001_021E,
+               male_70_74 = B01001_022E,
+               male_75_79 = B01001_023E,
+               male_80_84 = B01001_024E,
+               male_85ormore = B01001_025E,
+               
+               female_total = B01001_026E,
+               female_05orless = B01001_027E,
+               female_05_9 = B01001_028E,
+               female_10_14 = B01001_029E,
+               female_15_17 = B01001_030E,
+               female_18_19 = B01001_031E,
+               female_20 = B01001_032E,
+               female_21 = B01001_033E,
+               female_22_24 = B01001_034E,
+               female_25_29 = B01001_035E,
+               female_30_34 = B01001_036E,
+               female_35_39 = B01001_037E,
+               female_40_44 = B01001_038E,
+               female_45_49 = B01001_039E,
+               female_50_54 = B01001_040E,
+               female_55_59 = B01001_041E,
+               female_60_61 = B01001_042E,
+               female_62_64 = B01001_043E,
+               female_65_66 = B01001_044E,
+               female_67_69 = B01001_045E,
+               female_70_74 = B01001_046E,
+               female_75_79 = B01001_047E,
+               female_80_84 = B01001_048E,
+               female_85ormore = B01001_049E,
+               
+               MedHHIncome = B19019_001E,
+               HHInc_lessthan10 = B19001_002E,
+               HHInc_10_14 = B19001_003E,
+               HHInc_15_19 = B19001_004E,
+               HHInc_20_24 = B19001_005E,
+               HHInc_25_29 = B19001_006E,
+               HHInc_30_34 = B19001_007E,
+               HHInc_35_39 = B19001_008E,
+               HHInc_40_44 = B19001_009E,
+               HHInc_45_49 = B19001_010E,
+               HHInc_50_59 = B19001_011E,
+               HHInc_60_74 = B19001_012E,
+               HHInc_75_99 = B19001_013E,
+               HHInc_100_124 = B19001_014E,
+               HHInc_125_149 = B19001_015E,
+               HHInc_150_199 = B19001_016E,
+               HHInc_200ormore = B19001_017E,
+               
+               GRAPI_total = B25070_001E,
+               GRAPI_10orless = B25070_002E,
+               GRAPI_10_15 = B25070_003E,
+               GRAPI_15_20 = B25070_004E,
+               GRAPI_20_25 = B25070_005E,
+               GRAPI_25_30 = B25070_006E,
+               GRAPI_30_35 = B25070_007E,
+               GRAPI_35_40 = B25070_008E,
+               GRAPI_40_50 = B25070_009E,
+               GRAPI_50ormore = B25070_010E
+               ) %>%
+        dplyr::select(-ends_with("M", ignore.case = F)) %>% 
+        mutate(
+          year = year,
+          female_under18 = female_05orless + female_05_9 + female_10_14 + female_15_17,
+          female_18_34 = female_18_19 + female_20 + female_21 + female_22_24 + female_25_29 + female_30_34,
+          female_35_64 = female_35_39 + female_40_44 + female_45_49 + female_50_54 + female_55_59 + female_60_61 + female_62_64,
+          female_65_84 = female_65_66 + female_67_69 + female_70_74 + female_75_79 + female_80_84,
+          male_under18 = male_05orless + male_05_9 + male_10_14 + male_15_17,
+          male_18_34 = male_18_19 + male_20 + male_21 + male_22_24 + male_25_29 + male_30_34,
+          male_35_64 = male_35_39 + male_40_44 + male_45_49 + male_50_54 + male_55_59 + male_60_61 + male_62_64,
+          male_65_84 = male_65_66 + male_67_69 + male_70_74 + male_75_79 + male_80_84,
+          HHInc_lessthan15 = HHInc_lessthan10 + HHInc_10_14,
+          HHInc_15_29 = HHInc_15_19 + HHInc_20_24 + HHInc_25_29,
+          HHInc_30_59 = HHInc_30_34 + HHInc_35_39 + HHInc_40_44 + HHInc_45_49,
+          HHInc_60_99 = HHInc_50_59 + HHInc_60_74 + HHInc_75_99,
+          HHInc_100_149 = HHInc_100_124 + HHInc_125_149,
+          HHInc_over150 = HHInc_150_199 + HHInc_200ormore,
+          GRAPI_10_29 = GRAPI_10_15 + GRAPI_15_20 + GRAPI_20_25 + GRAPI_25_30,
+          GRAPI_30_49 = GRAPI_30_35 + GRAPI_35_40 + GRAPI_40_50
+          )
+      
+      # assign tracts dataframe to appropriate name for that year
+      assign(df_name, tracts)
+    } 
+    # for 2015-2021: 
+    else if (yr %in% 15:21) {
+      tracts <- get_acs(geography = "tract",
+                        variables = c("B01001_001E", # total population
+                                      "B01001A_001E", # White population
+                                      "B01001H_001E", # white, non-latine
+                                      "B01001B_001E", # Black population
+                                      "B01001C_001E", # AI/AN population
+                                      "B01001D_001E", # Asian population
+                                      "B01001E_001E", # NHPI population
+                                      "B01001I_001E", # latine
+                                      
+                                      # all NA
+                                      # "B98013_001E", # total pop (race/ethn)
+                                      # "B98013_002E", # white, not latino (race/ethn)
+                                      # "B98013_003E", # black, not latino (race/ethn)
+                                      # "B98013_004E", # ai/an, not latino (race/ethn)
+                                      # "B98013_005E", # asian, not latino (race/ethn)
+                                      # "B98013_006E", # nhpi, not latino (race/ethn)
+                                      # "B98013_007E", # latino (race/ethn)
+                                      
+                                      "B02015_007E", # total population, chinese
+                                      
+                                      "B05002_002E", # US-born
+                                      "B05002_013E", # foreign-born
+                                      
+                                      "B01001_002E", # total male
+                                      "B01001_003E", # male; age < 5
+                                      "B01001_004E", # male; age 5-9
+                                      "B01001_005E", # male; age 10-14
+                                      "B01001_006E", # male; age 15-17
+                                      "B01001_007E", # male; age 18-19
+                                      "B01001_008E", # male; age 20
+                                      "B01001_009E", # male; age 21
+                                      "B01001_010E", # male; age 22-24
+                                      "B01001_011E", # male; age 25-29
+                                      "B01001_012E", # male; age 30-34
+                                      "B01001_013E", # male; age 35-39
+                                      "B01001_014E", # male; age 40-44
+                                      "B01001_015E", # male; age 45-49
+                                      "B01001_016E", # male; age 50-54
+                                      "B01001_017E", # male; age 55-59
+                                      "B01001_018E", # male; age 60-61
+                                      "B01001_019E", # male; age 62-64
+                                      "B01001_020E", # male; age 65-66
+                                      "B01001_021E", # male; age 67-69
+                                      "B01001_022E", # male; age 70-74
+                                      "B01001_023E", # male; age 75-79
+                                      "B01001_024E", # male; age 80-84
+                                      "B01001_025E", # male; age >= 85
+                                      
+                                      "B01001_026E", # total female
+                                      "B01001_027E", # female; age < 5
+                                      "B01001_028E", # female; age 5-9
+                                      "B01001_029E", # female; age 10-14
+                                      "B01001_030E", # female; age 15-17
+                                      "B01001_031E", # female; age 18-19
+                                      "B01001_032E", # female; age 20
+                                      "B01001_033E", # female; age 21
+                                      "B01001_034E", # female; age 22-24
+                                      "B01001_035E", # female; age 25-29
+                                      "B01001_036E", # female; age 30-34
+                                      "B01001_037E", # female; age 35-39
+                                      "B01001_038E", # female; age 40-44
+                                      "B01001_039E", # female; age 45-49
+                                      "B01001_040E", # female; age 50-54
+                                      "B01001_041E", # female; age 55-59
+                                      "B01001_042E", # female; age 60-61
+                                      "B01001_043E", # female; age 62-64
+                                      "B01001_044E", # female; age 65-66
+                                      "B01001_045E", # female; age 67-69
+                                      "B01001_046E", # female; age 70-74
+                                      "B01001_047E", # female; age 75-79
+                                      "B01001_048E", # female; age 80-84
+                                      "B01001_049E", # female; age >= 85
+                                      
+                                      "B19019_001E", # Med HH income, total
+                                      "B19001_002E", # HH income < $10k
+                                      "B19001_003E", # HH income $10k-14k
+                                      "B19001_004E", # HH income $15k-19k
+                                      "B19001_005E", # HH income $20k-24k
+                                      "B19001_006E", # HH income $25k-29k
+                                      "B19001_007E", # HH income $30k-34k
+                                      "B19001_008E", # HH income $35k-39k
+                                      "B19001_009E", # HH income $40k-44k
+                                      "B19001_010E", # HH income $45k-49k
+                                      "B19001_011E", # HH income $50k-59k
+                                      "B19001_012E", # HH income $60k-74k
+                                      "B19001_013E", # HH income $75k-99k
+                                      "B19001_014E", # HH income $100k-124k
+                                      "B19001_015E", # HH income $125k-149k
+                                      "B19001_016E", # HH income $150k-199k
+                                      "B19001_017E", # HH income $200,000 or more
+                                      
+                                      "B25070_001E", # gross rent as %age of HH income (GRAPI) total
+                                      "B25070_002E", # GRAPI < 10%
+                                      "B25070_003E", # GRAPI < 15%
+                                      "B25070_004E", # GRAPI < 20%
+                                      "B25070_005E", # GRAPI < 25%
+                                      "B25070_006E", # GRAPI < 30%
+                                      "B25070_007E", # GRAPI < 35%
+                                      "B25070_008E", # GRAPI < 40%
+                                      "B25070_009E", # GRAPI < 50%
+                                      "B25070_010E" # GRAPI >= 50%
+                                      ),
+                        year = year,
+                        state = 42,
+                        county = 101,
+                        survey = "acs5",
+                        # geometry = T,
+                        output = "wide") %>%
+      # st_transform(crs = my_crs) %>%
+      rename(total_pop = B01001_001E,
+             white_pop = B01001A_001E,
+             white_nonlatine_pop = B01001H_001E,
+             black_pop = B01001B_001E,
+             AIAN_pop = B01001C_001E,
+             asian_pop = B01001D_001E,
+             NHPI_pop = B01001E_001E,
+             latine_pop = B01001I_001E,
+             
+             # all NA
+             # total_pop_ethn = B98013_001E,
+             # white_notlatine = B98013_002E,
+             # black_notlatine = B98013_003E,
+             # AIAN_notlatine = B98013_004E,
+             # asian_notlatine = B98013_005E,
+             # nhpi_notlatine = B98013_006E,
+             # latine = B98013_007E,
+             
+             chinese = B02015_007E,
+             
+             USborn = B05002_002E,
+             foreignborn = B05002_013E,
+             
+             male_total = B01001_002E,
+             male_05orless = B01001_003E,
+             male_05_9 = B01001_004E,
+             male_10_14 = B01001_005E,
+             male_15_17 = B01001_006E,
+             male_18_19 = B01001_007E,
+             male_20 = B01001_008E,
+             male_21 = B01001_009E,
+             male_22_24 = B01001_010E,
+             male_25_29 = B01001_011E,
+             male_30_34 = B01001_012E,
+             male_35_39 = B01001_013E,
+             male_40_44 = B01001_014E,
+             male_45_49 = B01001_015E,
+             male_50_54 = B01001_016E,
+             male_55_59 = B01001_017E,
+             male_60_61 = B01001_018E,
+             male_62_64 = B01001_019E,
+             male_65_66 = B01001_020E,
+             male_67_69 = B01001_021E,
+             male_70_74 = B01001_022E,
+             male_75_79 = B01001_023E,
+             male_80_84 = B01001_024E,
+             male_85ormore = B01001_025E,
+             
+             female_total = B01001_026E,
+             female_05orless = B01001_027E,
+             female_05_9 = B01001_028E,
+             female_10_14 = B01001_029E,
+             female_15_17 = B01001_030E,
+             female_18_19 = B01001_031E,
+             female_20 = B01001_032E,
+             female_21 = B01001_033E,
+             female_22_24 = B01001_034E,
+             female_25_29 = B01001_035E,
+             female_30_34 = B01001_036E,
+             female_35_39 = B01001_037E,
+             female_40_44 = B01001_038E,
+             female_45_49 = B01001_039E,
+             female_50_54 = B01001_040E,
+             female_55_59 = B01001_041E,
+             female_60_61 = B01001_042E,
+             female_62_64 = B01001_043E,
+             female_65_66 = B01001_044E,
+             female_67_69 = B01001_045E,
+             female_70_74 = B01001_046E,
+             female_75_79 = B01001_047E,
+             female_80_84 = B01001_048E,
+             female_85ormore = B01001_049E,
+             
+             MedHHIncome = B19019_001E,
+             HHInc_lessthan10 = B19001_002E,
+             HHInc_10_14 = B19001_003E,
+             HHInc_15_19 = B19001_004E,
+             HHInc_20_24 = B19001_005E,
+             HHInc_25_29 = B19001_006E,
+             HHInc_30_34 = B19001_007E,
+             HHInc_35_39 = B19001_008E,
+             HHInc_40_44 = B19001_009E,
+             HHInc_45_49 = B19001_010E,
+             HHInc_50_59 = B19001_011E,
+             HHInc_60_74 = B19001_012E,
+             HHInc_75_99 = B19001_013E,
+             HHInc_100_124 = B19001_014E,
+             HHInc_125_149 = B19001_015E,
+             HHInc_150_199 = B19001_016E,
+             HHInc_200ormore = B19001_017E,
+             
+             GRAPI_total = B25070_001E,
+             GRAPI_10orless = B25070_002E,
+             GRAPI_10_15 = B25070_003E,
+             GRAPI_15_20 = B25070_004E,
+             GRAPI_20_25 = B25070_005E,
+             GRAPI_25_30 = B25070_006E,
+             GRAPI_30_35 = B25070_007E,
+             GRAPI_35_40 = B25070_008E,
+             GRAPI_40_50 = B25070_009E,
+             GRAPI_50ormore = B25070_010E
+             ) %>%
+        dplyr::select(-ends_with("M", ignore.case = F)) %>% 
+        mutate(
+          year = year,
+          female_under18 = female_05orless + female_05_9 + female_10_14 + female_15_17,
+          female_18_34 = female_18_19 + female_20 + female_21 + female_22_24 + female_25_29 + female_30_34,
+          female_35_64 = female_35_39 + female_40_44 + female_45_49 + female_50_54 + female_55_59 + female_60_61 + female_62_64,
+          female_65_84 = female_65_66 + female_67_69 + female_70_74 + female_75_79 + female_80_84,
+          male_under18 = male_05orless + male_05_9 + male_10_14 + male_15_17,
+          male_18_34 = male_18_19 + male_20 + male_21 + male_22_24 + male_25_29 + male_30_34,
+          male_35_64 = male_35_39 + male_40_44 + male_45_49 + male_50_54 + male_55_59 + male_60_61 + male_62_64,
+          male_65_84 = male_65_66 + male_67_69 + male_70_74 + male_75_79 + male_80_84,
+          HHInc_lessthan15 = HHInc_lessthan10 + HHInc_10_14,
+          HHInc_15_29 = HHInc_15_19 + HHInc_20_24 + HHInc_25_29,
+          HHInc_30_59 = HHInc_30_34 + HHInc_35_39 + HHInc_40_44 + HHInc_45_49,
+          HHInc_60_99 = HHInc_50_59 + HHInc_60_74 + HHInc_75_99,
+          HHInc_100_149 = HHInc_100_124 + HHInc_125_149,
+          HHInc_over150 = HHInc_150_199 + HHInc_200ormore,
+          GRAPI_10_29 = GRAPI_10_15 + GRAPI_15_20 + GRAPI_20_25 + GRAPI_25_30,
+          GRAPI_30_49 = GRAPI_30_35 + GRAPI_35_40 + GRAPI_40_50
+          )
+      
+      # assign tracts dataframe to appropriate name for that year
+      assign(df_name, tracts)
+    }
+    # for 2022-23
+    else {
+      tracts <- get_acs(geography = "tract",
+                        variables = c("B01001_001E", # total population
+                                      "B01001A_001E", # White population
+                                      "B01001H_001E", # white, non-latine
+                                      "B01001B_001E", # Black population
+                                      "B01001C_001E", # AI/AN population
+                                      "B01001D_001E", # Asian population
+                                      "B01001E_001E", # NHPI population
+                                      "B01001I_001E", # latine
+                                      
+                                      # all NA
+                                      # "B98013_001E", # total pop (race/ethn)
+                                      # "B98013_002E", # white, not latino (race/ethn)
+                                      # "B98013_003E", # black, not latino (race/ethn)
+                                      # "B98013_004E", # ai/an, not latino (race/ethn)
+                                      # "B98013_005E", # asian, not latino (race/ethn)
+                                      # "B98013_006E", # nhpi, not latino (race/ethn)
+                                      # "B98013_007E", # latino (race/ethn)
+                                      
+                                      "B02015_002E", # total population, chinese
+                                      
+                                      "B05002_002E", # US-born
+                                      "B05002_013E", # foreign-born
+                                      
+                                      "B01001_002E", # total male
+                                      "B01001_003E", # male; age < 5
+                                      "B01001_004E", # male; age 5-9
+                                      "B01001_005E", # male; age 10-14
+                                      "B01001_006E", # male; age 15-17
+                                      "B01001_007E", # male; age 18-19
+                                      "B01001_008E", # male; age 20
+                                      "B01001_009E", # male; age 21
+                                      "B01001_010E", # male; age 22-24
+                                      "B01001_011E", # male; age 25-29
+                                      "B01001_012E", # male; age 30-34
+                                      "B01001_013E", # male; age 35-39
+                                      "B01001_014E", # male; age 40-44
+                                      "B01001_015E", # male; age 45-49
+                                      "B01001_016E", # male; age 50-54
+                                      "B01001_017E", # male; age 55-59
+                                      "B01001_018E", # male; age 60-61
+                                      "B01001_019E", # male; age 62-64
+                                      "B01001_020E", # male; age 65-66
+                                      "B01001_021E", # male; age 67-69
+                                      "B01001_022E", # male; age 70-74
+                                      "B01001_023E", # male; age 75-79
+                                      "B01001_024E", # male; age 80-84
+                                      "B01001_025E", # male; age >= 85
+                                      
+                                      "B01001_026E", # total female
+                                      "B01001_027E", # female; age < 5
+                                      "B01001_028E", # female; age 5-9
+                                      "B01001_029E", # female; age 10-14
+                                      "B01001_030E", # female; age 15-17
+                                      "B01001_031E", # female; age 18-19
+                                      "B01001_032E", # female; age 20
+                                      "B01001_033E", # female; age 21
+                                      "B01001_034E", # female; age 22-24
+                                      "B01001_035E", # female; age 25-29
+                                      "B01001_036E", # female; age 30-34
+                                      "B01001_037E", # female; age 35-39
+                                      "B01001_038E", # female; age 40-44
+                                      "B01001_039E", # female; age 45-49
+                                      "B01001_040E", # female; age 50-54
+                                      "B01001_041E", # female; age 55-59
+                                      "B01001_042E", # female; age 60-61
+                                      "B01001_043E", # female; age 62-64
+                                      "B01001_044E", # female; age 65-66
+                                      "B01001_045E", # female; age 67-69
+                                      "B01001_046E", # female; age 70-74
+                                      "B01001_047E", # female; age 75-79
+                                      "B01001_048E", # female; age 80-84
+                                      "B01001_049E", # female; age >= 85
+                                      
+                                      "B19019_001E", # Med HH income, total
+                                      "B19001_002E", # HH income < $10k
+                                      "B19001_003E", # HH income $10k-14k
+                                      "B19001_004E", # HH income $15k-19k
+                                      "B19001_005E", # HH income $20k-24k
+                                      "B19001_006E", # HH income $25k-29k
+                                      "B19001_007E", # HH income $30k-34k
+                                      "B19001_008E", # HH income $35k-39k
+                                      "B19001_009E", # HH income $40k-44k
+                                      "B19001_010E", # HH income $45k-49k
+                                      "B19001_011E", # HH income $50k-59k
+                                      "B19001_012E", # HH income $60k-74k
+                                      "B19001_013E", # HH income $75k-99k
+                                      "B19001_014E", # HH income $100k-124k
+                                      "B19001_015E", # HH income $125k-149k
+                                      "B19001_016E", # HH income $150k-199k
+                                      "B19001_017E", # HH income $200,000 or more
+                                      
+                                      "B25070_001E", # gross rent as %age of HH income (GRAPI) total
+                                      "B25070_002E", # GRAPI < 10%
+                                      "B25070_003E", # GRAPI < 15%
+                                      "B25070_004E", # GRAPI < 20%
+                                      "B25070_005E", # GRAPI < 25%
+                                      "B25070_006E", # GRAPI < 30%
+                                      "B25070_007E", # GRAPI < 35%
+                                      "B25070_008E", # GRAPI < 40%
+                                      "B25070_009E", # GRAPI < 50%
+                                      "B25070_010E" # GRAPI >= 50%
+                                      ),
+                        year = year,
+                        state = 42,
+                        county = 101,
+                        survey = "acs5",
+                        # geometry = T,
+                        output = "wide") %>%
+        # st_transform(crs = my_crs) %>%
+        rename(total_pop = B01001_001E,
+               white_pop = B01001A_001E,
+               white_nonlatine_pop = B01001H_001E,
+               black_pop = B01001B_001E,
+               AIAN_pop = B01001C_001E,
+               asian_pop = B01001D_001E,
+               NHPI_pop = B01001E_001E,
+               latine_pop = B01001I_001E,
+               
+               # all NA
+               # total_pop_ethn = B98013_001E,
+               # white_notlatine = B98013_002E,
+               # black_notlatine = B98013_003E,
+               # AIAN_notlatine = B98013_004E,
+               # asian_notlatine = B98013_005E,
+               # nhpi_notlatine = B98013_006E,
+               # latine = B98013_007E,
+               
+               chinese = B02015_002E,
+               
+               USborn = B05002_002E,
+               foreignborn = B05002_013E,
+               
+               male_total = B01001_002E,
+               male_05orless = B01001_003E,
+               male_05_9 = B01001_004E,
+               male_10_14 = B01001_005E,
+               male_15_17 = B01001_006E,
+               male_18_19 = B01001_007E,
+               male_20 = B01001_008E,
+               male_21 = B01001_009E,
+               male_22_24 = B01001_010E,
+               male_25_29 = B01001_011E,
+               male_30_34 = B01001_012E,
+               male_35_39 = B01001_013E,
+               male_40_44 = B01001_014E,
+               male_45_49 = B01001_015E,
+               male_50_54 = B01001_016E,
+               male_55_59 = B01001_017E,
+               male_60_61 = B01001_018E,
+               male_62_64 = B01001_019E,
+               male_65_66 = B01001_020E,
+               male_67_69 = B01001_021E,
+               male_70_74 = B01001_022E,
+               male_75_79 = B01001_023E,
+               male_80_84 = B01001_024E,
+               male_85ormore = B01001_025E,
+               
+               female_total = B01001_026E,
+               female_05orless = B01001_027E,
+               female_05_9 = B01001_028E,
+               female_10_14 = B01001_029E,
+               female_15_17 = B01001_030E,
+               female_18_19 = B01001_031E,
+               female_20 = B01001_032E,
+               female_21 = B01001_033E,
+               female_22_24 = B01001_034E,
+               female_25_29 = B01001_035E,
+               female_30_34 = B01001_036E,
+               female_35_39 = B01001_037E,
+               female_40_44 = B01001_038E,
+               female_45_49 = B01001_039E,
+               female_50_54 = B01001_040E,
+               female_55_59 = B01001_041E,
+               female_60_61 = B01001_042E,
+               female_62_64 = B01001_043E,
+               female_65_66 = B01001_044E,
+               female_67_69 = B01001_045E,
+               female_70_74 = B01001_046E,
+               female_75_79 = B01001_047E,
+               female_80_84 = B01001_048E,
+               female_85ormore = B01001_049E,
+               
+               MedHHIncome = B19019_001E,
+               HHInc_lessthan10 = B19001_002E,
+               HHInc_10_14 = B19001_003E,
+               HHInc_15_19 = B19001_004E,
+               HHInc_20_24 = B19001_005E,
+               HHInc_25_29 = B19001_006E,
+               HHInc_30_34 = B19001_007E,
+               HHInc_35_39 = B19001_008E,
+               HHInc_40_44 = B19001_009E,
+               HHInc_45_49 = B19001_010E,
+               HHInc_50_59 = B19001_011E,
+               HHInc_60_74 = B19001_012E,
+               HHInc_75_99 = B19001_013E,
+               HHInc_100_124 = B19001_014E,
+               HHInc_125_149 = B19001_015E,
+               HHInc_150_199 = B19001_016E,
+               HHInc_200ormore = B19001_017E,
+               
+               GRAPI_total = B25070_001E,
+               GRAPI_10orless = B25070_002E,
+               GRAPI_10_15 = B25070_003E,
+               GRAPI_15_20 = B25070_004E,
+               GRAPI_20_25 = B25070_005E,
+               GRAPI_25_30 = B25070_006E,
+               GRAPI_30_35 = B25070_007E,
+               GRAPI_35_40 = B25070_008E,
+               GRAPI_40_50 = B25070_009E,
+               GRAPI_50ormore = B25070_010E
+               ) %>%
+        dplyr::select(-ends_with("M", ignore.case = F)) %>% 
+        mutate(
+          year = year,
+          female_under18 = female_05orless + female_05_9 + female_10_14 + female_15_17,
+          female_18_34 = female_18_19 + female_20 + female_21 + female_22_24 + female_25_29 + female_30_34,
+          female_35_64 = female_35_39 + female_40_44 + female_45_49 + female_50_54 + female_55_59 + female_60_61 + female_62_64,
+          female_65_84 = female_65_66 + female_67_69 + female_70_74 + female_75_79 + female_80_84,
+          male_under18 = male_05orless + male_05_9 + male_10_14 + male_15_17,
+          male_18_34 = male_18_19 + male_20 + male_21 + male_22_24 + male_25_29 + male_30_34,
+          male_35_64 = male_35_39 + male_40_44 + male_45_49 + male_50_54 + male_55_59 + male_60_61 + male_62_64,
+          male_65_84 = male_65_66 + male_67_69 + male_70_74 + male_75_79 + male_80_84,
+          HHInc_lessthan15 = HHInc_lessthan10 + HHInc_10_14,
+          HHInc_15_29 = HHInc_15_19 + HHInc_20_24 + HHInc_25_29,
+          HHInc_30_59 = HHInc_30_34 + HHInc_35_39 + HHInc_40_44 + HHInc_45_49,
+          HHInc_60_99 = HHInc_50_59 + HHInc_60_74 + HHInc_75_99,
+          HHInc_100_149 = HHInc_100_124 + HHInc_125_149,
+          HHInc_over150 = HHInc_150_199 + HHInc_200ormore,
+          GRAPI_10_29 = GRAPI_10_15 + GRAPI_15_20 + GRAPI_20_25 + GRAPI_25_30,
+          GRAPI_30_49 = GRAPI_30_35 + GRAPI_35_40 + GRAPI_40_50
+        )
+      
+      # assign tracts dataframe to appropriate name for that year
+      assign(df_name, tracts)
+    }
+  }
+
+```
+
+```{r clean_census_data}
+# group variables together for summary stats
+# only keep data from chinatown, aka census tract 2 and 376 (taking PCDC's report as an example)
+# The PCDC service area is a large portion of both of these tracts
+
+# define function to pull out data for tract of choice
+getTract <- function(tracts, tract_to_get) {
+  tract <- tracts %>% 
+    filter(grepl(tract_to_get, GEOID))
+  
+  return(tract)
+}
+
+chinatown002 <- rbind(
+  getTract(tracts10, "^421010002"),
+  getTract(tracts11, "^421010002"),
+  getTract(tracts12, "^421010002"),
+  getTract(tracts13, "^421010002"),
+  getTract(tracts14, "^421010002"),
+  getTract(tracts15, "^421010002"),
+  getTract(tracts16, "^421010002"),
+  getTract(tracts17, "^421010002"),
+  getTract(tracts18, "^421010002"),
+  getTract(tracts19, "^421010002"),
+  getTract(tracts20, "^421010002"),
+  getTract(tracts21, "^421010002"),
+  getTract(tracts22, "^421010002"),
+  getTract(tracts23, "^421010002")
+) %>% 
+  mutate(tract = 2)
+
+chinatown376 <- rbind(
+  getTract(tracts10, "^421010376"),
+  getTract(tracts11, "^421010376"),
+  getTract(tracts12, "^421010376"),
+  getTract(tracts13, "^421010376"),
+  getTract(tracts14, "^421010376"),
+  getTract(tracts15, "^421010376"),
+  getTract(tracts16, "^421010376"),
+  getTract(tracts17, "^421010376"),
+  getTract(tracts18, "^421010376"),
+  getTract(tracts19, "^421010376"),
+  getTract(tracts20, "^421010376"),
+  getTract(tracts21, "^421010376"),
+  getTract(tracts22, "^421010376"),
+  getTract(tracts23, "^421010376")
+) %>% 
+  mutate(tract = 376)
+
+chinatown_bothtracts <- rbind(chinatown002, chinatown376)
+
+```
+
+### Total Population
+
+How has total population changed from 2010-2023?
+
+```{r total_pop}
+total_pop <- chinatown_bothtracts %>% 
+  select(total_pop, year) %>% 
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop)) %>% 
+  ungroup()
+
+total_pop_plot <- total_pop %>% 
+  mutate(constant = "con") %>% 
+  ggplot(aes(x = year, y = total_pop, alluvium = constant)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = constant),
+                alpha = .75, decreasing = FALSE,
+                show.legend = F) +
+  
+  scale_fill_manual(values = c("con" = colors[2])) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     # labels = as.character(2010:2023),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Total Population from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Total Population") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[2]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"))
+
+total_pop_plot
+
+# save image
+# ggsave("images/250408_total_pop.png", 
+#        plot = total_pop_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+### Age Breakdown
+
+How has total population changed from 2010-2023 with regards to age?
+
+```{r age}
+# 5 total age groups
+  # < 18
+  # 18 - 34
+  # 35 - 64
+  # 65 - 84
+  # > 85
+age <- chinatown_bothtracts %>% 
+  select(matches("year|under18|18_34|35_64|65_84|85ormore|total_pop")) %>% 
+  mutate(age_under18 = male_under18 + female_under18,  # don't need separation by sex
+         age_18_34 = male_18_34 + female_18_34,
+         age_35_64 = male_35_64 + female_35_64,  # don't need separation by sex
+         age_65_84 = male_65_84 + female_65_84,  # don't need separation by sex
+         age_85ormore = male_85ormore + female_85ormore,
+         .keep = "unused") %>%
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop),
+            age_under18 = sum(age_under18),
+            age_18_34 = sum(age_18_34),
+            age_35_64 = sum(age_35_64),
+            age_65_84 = sum(age_65_84),
+            age_85ormore = sum(age_85ormore)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = age_under18:age_85ormore,
+               names_to = "age_class",
+               values_to = "count") %>% 
+  mutate(proportion = count / total_pop,
+         age_class = factor(age_class, levels = c("age_under18", "age_18_34", "age_35_64", "age_65_84", "age_85ormore"))
+         )
+
+age_plot <- age %>% 
+  ggplot(aes(x = year, y = count, alluvium = age_class)) +
+  # ggplot(aes(x = year, y = proportion, alluvium = age_class)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = age_class, color = age_class),
+                alpha = .75, decreasing = FALSE
+                ) +
+  
+  scale_fill_manual(values = c("age_under18" = colors[7],
+                               "age_18_34" = colors[6],
+                               "age_35_64" = colors[5],
+                               "age_65_84" = colors[2],
+                               "age_85ormore" = "#260c03FF"),
+                    labels = c("age_under18" = "< 18",
+                               "age_18_34" = "18-34",
+                               "age_35_64" = "35-64",
+                               "age_65_84" = "65-84",
+                               "age_85ormore" = "85+")) +
+  scale_color_manual(values = c("age_under18" = colors[7],
+                               "age_18_34" = colors[6],
+                               "age_35_64" = colors[5],
+                               "age_65_84" = colors[2],
+                               "age_85ormore" = "#260c03FF"),
+                     labels = c("age_under18" = "< 18",
+                               "age_18_34" = "18-34",
+                               "age_35_64" = "35-64",
+                               "age_65_84" = "65-84",
+                               "age_85ormore" = "85+")) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     # labels = as.character(2010:2023),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Age Breakdown of Population from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Count",
+       color = "Age Category:",
+       fill = "Age Category:") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = "#260c03FF"),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"),
+        legend.position = "top",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        legend.key.size = unit(.5, "line"))
+
+age_plot
+
+# save image
+# ggsave("images/250408_age.png", 
+#        plot = age_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+For future iteration, I may consider switching to a plain stacked area chart + adding the category names in the plot itself so we can get rid of the legend
+
+### Race/Ethnicity Breakdown
+
+How has total population changed from 2010-2023 with regards to race/ethnicity?
+
+```{r race_ethn}
+# 5 total race_ethn groups
+  # white_nonlatine_pop
+  # black_pop
+  # asian_pop
+  # latine_pop
+  # other (including AIAN + NHPI)
+race_ethn <- chinatown_bothtracts %>% 
+  select(matches("year|total_pop|white_non|black|AIAN|asian|NHPI|latine")) %>% 
+  mutate(other = total_pop - (white_nonlatine_pop + black_pop + asian_pop + latine_pop)) %>% # create "other" category
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop),
+            white_nonlatine_pop = sum(white_nonlatine_pop),
+            black_pop = sum(black_pop),
+            asian_pop = sum(asian_pop),
+            latine_pop = sum(latine_pop),
+            other = sum(other)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = white_nonlatine_pop:other,
+               names_to = "race_ethn",
+               values_to = "count") %>% 
+  mutate(proportion = count / total_pop,
+         race_ethn = factor(race_ethn, levels = c("asian_pop", "white_nonlatine_pop", "black_pop", "latine_pop", "other"))
+         )
+
+race_ethn_plot <- race_ethn %>% 
+  ggplot(aes(x = year, y = count, alluvium = race_ethn)) +
+  # ggplot(aes(x = year, y = proportion, alluvium = race_ethn)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = race_ethn, color = race_ethn),
+                alpha = .75, decreasing = FALSE
+                ) +
+  
+  scale_fill_manual(values = c("asian_pop" = colors[5],
+                               "white_nonlatine_pop" = colors[7],
+                               "black_pop" = colors[2],
+                               "latine_pop" = colors[6],
+                               "other" = colors[1]),
+                    labels = c("asian_pop" = "Asian",
+                               "white_nonlatine_pop" = "White",
+                               "black_pop" = "Black",
+                               "latine_pop" = "Latine",
+                               "other" = "Other")) +
+  scale_color_manual(values = c("asian_pop" = colors[5],
+                               "white_nonlatine_pop" = colors[7],
+                               "black_pop" = colors[2],
+                               "latine_pop" = colors[6],
+                               "other" = colors[1]),
+                    labels = c("asian_pop" = "Asian",
+                               "white_nonlatine_pop" = "White",
+                               "black_pop" = "Black",
+                               "latine_pop" = "Latine",
+                               "other" = "Other")) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     # labels = as.character(2010:2023),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Racial/Ethnic Breakdown of Population from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Count",
+       color = "Race/Ethnicity:",
+       fill = "Race/Ethnicity:") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[1]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"),
+        legend.position = "top",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        legend.key.size = unit(.5, "line"))
+
+race_ethn_plot
+
+# save image
+# ggsave("images/250408_race_ethn.png",
+#        plot = race_ethn_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+### Proportion Chinese Breakdown
+
+How has total population changed from 2010-2023 with regards to age with regards to proportion of residents who identify as Chinese? 
+
+Unfortunately, this graph does not capture the granularity of foreign vs US born, and for those who migrated from China, which regions they come from. We know from literature review that the Chinese population in Philadelphia has changed from the folks coming from the Guangdong region (speaking Toisan and Cantonese), to more folks from the Fuzhou region (speaking Fujianese and Mandarin).
+
+```{r proportion_chinese_both}
+# for both tracts
+proportion_chinese <- chinatown_bothtracts %>% 
+  select(total_pop, chinese, year) %>% 
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop),
+            chinese = sum(chinese)) %>% 
+  mutate(proportion_chinese = 100 * (chinese / total_pop)) %>% 
+  ungroup()
+
+proportion_chinese_plot <- proportion_chinese %>% 
+  mutate(constant = "con") %>% 
+  ggplot(aes(x = year, y = proportion_chinese, alluvium = constant)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = constant),
+                alpha = .75, decreasing = FALSE,
+                show.legend = F) +
+  
+  scale_fill_manual(values = c("con" = colors[5])) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Share of Chinese Residents from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Chinese Share (%)") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[5]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"))
+
+proportion_chinese_plot
+
+# save image
+# ggsave("images/250408_proportion_chinese.png", 
+#        plot = proportion_chinese_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+```{r proportion_chinese_split}
+# for both tracts
+proportion_chinese_split <- chinatown_bothtracts %>% 
+  select(total_pop, chinese, year, tract) %>% 
+  mutate(proportion_chinese = 100 * (chinese / total_pop),
+         tract = as.character(tract))
+
+proportion_chinese_split_plot <- proportion_chinese_split %>% 
+  mutate(constant = "con") %>% 
+  ggplot(aes(x = year, y = proportion_chinese, alluvium = tract)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = tract),
+                alpha = .75, decreasing = FALSE) +
+  
+  scale_fill_manual(values = c("2" = colors[5],
+                               "376" = colors[2]),
+                    labels = c("2" = "Tract 2 - South",
+                               "376" = "Tract 376 - North")) +
+  scale_color_manual(values = c("2" = colors[5],
+                                "376" = colors[2]),
+                    labels = c("2" = "Tract 2 - South",
+                               "376" = "Tract 376 - North")) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Share of Chinese Residents from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Chinese Share (%)",
+       color = "Tract",
+       fill = "Tract") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[5]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"),
+        legend.position = "top",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        legend.key.size = unit(.5, "line"))
+
+proportion_chinese_split_plot
+
+# save image
+# ggsave("images/250408_proportion_chinese_split.png", 
+#        plot = proportion_chinese_split_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+For the next iteration, possibly think about stacking this share of chinese residents on top of the total population to contextualize the change in population.
+
+```{r proportion_chinese_south}
+# for tract 2 (south - aka commercial Chinatown)
+proportion_chinese_s <- chinatown_bothtracts %>% 
+  filter(tract == 2) %>% 
+  select(total_pop, chinese, year) %>% 
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop),
+            chinese = sum(chinese)) %>% 
+  mutate(proportion_chinese_s = 100 * (chinese / total_pop)) %>% 
+  ungroup()
+
+proportion_chinese_s_plot <- proportion_chinese_s %>% 
+  mutate(constant = "con") %>% 
+  ggplot(aes(x = year, y = proportion_chinese_s, alluvium = constant)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = constant),
+                alpha = .75, decreasing = FALSE,
+                show.legend = F) +
+  
+  scale_fill_manual(values = c("con" = colors[5])) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Share of Chinese Residents from 2010-2023",
+       subtitle = "Chinatown South (Census Tract 2), Philadelphia, PA",
+       x = "Year",
+       y = "Chinese Share (%)") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[5]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"))
+
+proportion_chinese_s_plot
+
+# save image
+# ggsave("images/250408_proportion_chinese_s.png", 
+#        plot = proportion_chinese_s_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+```{r proportion_chinese_north}
+# for tract 376 (north - aka Callowhill)
+proportion_chinese_n <- chinatown_bothtracts %>% 
+  filter(tract == 376) %>% 
+  select(total_pop, chinese, year) %>% 
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop),
+            chinese = sum(chinese)) %>% 
+  mutate(proportion_chinese_n = 100 * (chinese / total_pop)) %>% 
+  ungroup()
+
+proportion_chinese_n_plot <- proportion_chinese_n %>% 
+  mutate(constant = "con") %>% 
+  ggplot(aes(x = year, y = proportion_chinese_n, alluvium = constant)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = constant),
+                alpha = .75, decreasing = FALSE,
+                show.legend = F) +
+  
+  scale_fill_manual(values = c("con" = colors[5])) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Share of Chinese Residents from 2010-2023",
+       subtitle = "Chinatown North (Census Tract 376), Philadelphia, PA",
+       x = "Year",
+       y = "Chinese Share (%)") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[5]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"))
+
+proportion_chinese_n_plot
+
+# save image
+# ggsave("images/250408_proportion_chinese_n.png", 
+#        plot = proportion_chinese_n_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+### US vs Foreign-born Breakdown
+
+How has the population nativity in the region changed from 2010-2023?
+
+```{r us_foreign}
+us_foreign <- chinatown_bothtracts %>% 
+  select(matches("year|total_pop|USb|for")) %>% 
+  group_by(year) %>% 
+  summarize(total_pop = sum(total_pop),
+            USborn = sum(USborn),
+            foreignborn = sum(foreignborn)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = USborn:foreignborn,
+               names_to = "us_foreign",
+               values_to = "count") %>% 
+  mutate(proportion = count / total_pop)
+
+us_foreign_plot <- us_foreign %>% 
+  ggplot(aes(x = year, y = count, alluvium = us_foreign)) +
+  # ggplot(aes(x = year, y = proportion, alluvium = us_foreign)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = us_foreign, color = us_foreign),
+                alpha = .75, decreasing = FALSE
+                ) +
+  
+  scale_fill_manual(values = c("USborn" = colors[1],
+                               "foreignborn" = colors[5]),
+                    labels = c("USborn" = "US-born",
+                               "foreignborn" = "Foreign-born")) +
+  scale_color_manual(values = c("USborn" = colors[1],
+                               "foreignborn" = colors[5]),
+                    labels = c("USborn" = "US-born",
+                               "foreignborn" = "Foreign-born")) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     # labels = as.character(2010:2023),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Country of Origin of Population from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Count",
+       color = "Country of Origin:",
+       fill = "Country of Origin:") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[1]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"),
+        legend.position = "top",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        legend.key.size = unit(.5, "line"))
+
+us_foreign_plot
+
+# save image
+# ggsave("images/250408_us_foreign.png",
+#        plot = us_foreign_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+
+### Median HH Income Breakdown
+
+How has median HH income in the region changed from 2010-2023?
+
+```{r medHHinc}
+# for both tracts
+medHHinc <- chinatown_bothtracts %>% 
+  select(MedHHIncome, year) %>% 
+  group_by(year) %>% 
+  summarize(MedHHIncome = mean(MedHHIncome, na.rm = T)) %>% 
+  ungroup()
+
+medHHinc_plot <- medHHinc %>% 
+  mutate(constant = "con") %>% 
+  ggplot(aes(x = year, y = MedHHIncome, alluvium = constant)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = constant),
+                alpha = .75, decreasing = FALSE,
+                show.legend = F) +
+  
+  scale_fill_manual(values = c("con" = colors[4])) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Median Household Income from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Median Income ($)") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = colors[4]),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"))
+
+medHHinc_plot
+
+# save image
+# ggsave("images/250408_medHHinc.png", 
+#        plot = medHHinc_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+### Income Breakdown
+
+How has income distribution in the region changed from 2010-2023?
+
+```{r inc_dist}
+# 6 levels of income
+  # < 15k
+  # 15k - 29k
+  # 30k - 59k
+  # 60k - 99k
+  # 100k - 149k
+  # > 150k
+
+# custom colors
+palette_inc <- colorRampPalette(colors = c(colors[7], colors[2]))(6)
+
+inc_dist <- chinatown_bothtracts %>% 
+  select(matches("year|HHInc")) %>% 
+  select(year:HHInc_over150) %>% 
+  group_by(year) %>% 
+  summarize(HHInc_lessthan15 = sum(HHInc_lessthan15),
+            HHInc_15_29 = sum(HHInc_15_29),
+            HHInc_30_59 = sum(HHInc_30_59),
+            HHInc_60_99 = sum(HHInc_60_99),
+            HHInc_100_149 = sum(HHInc_100_149),
+            HHInc_over150 = sum(HHInc_over150)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = HHInc_lessthan15:HHInc_over150,
+               names_to = "inc_dist_class",
+               values_to = "count") %>% 
+  mutate(inc_dist_class = factor(inc_dist_class, levels = c("HHInc_lessthan15", "HHInc_15_29", "HHInc_30_59", "HHInc_60_99", "HHInc_100_149", "HHInc_over150"))
+         )
+
+inc_dist_plot <- inc_dist %>% 
+  ggplot(aes(x = year, y = count, alluvium = inc_dist_class)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = inc_dist_class, color = inc_dist_class),
+                alpha = .75, decreasing = FALSE
+                ) +
+  
+  scale_fill_manual(values = c("HHInc_lessthan15" = palette_inc[6],
+                               "HHInc_15_29" = palette_inc[5],
+                               "HHInc_30_59" = palette_inc[4],
+                               "HHInc_60_99" = palette_inc[3],
+                               "HHInc_100_149" = palette_inc[2],
+                               "HHInc_over150" = palette_inc[1]),
+                    labels = c("HHInc_lessthan15" = "< $15k",
+                               "HHInc_15_29" = "$15k - $29k",
+                               "HHInc_30_59" = "30k - 59k",
+                               "HHInc_60_99" = "60k - 99k",
+                               "HHInc_100_149" = "100k - 149k",
+                               "HHInc_over150" = "> 150k")) +
+  scale_color_manual(values = c("HHInc_lessthan15" = palette_inc[6],
+                               "HHInc_15_29" = palette_inc[5],
+                               "HHInc_30_59" = palette_inc[4],
+                               "HHInc_60_99" = palette_inc[3],
+                               "HHInc_100_149" = palette_inc[2],
+                               "HHInc_over150" = palette_inc[1]),
+                    labels = c("HHInc_lessthan15" = "< $15k",
+                               "HHInc_15_29" = "$15k - $29k",
+                               "HHInc_30_59" = "30k - 59k",
+                               "HHInc_60_99" = "60k - 99k",
+                               "HHInc_100_149" = "100k - 149k",
+                               "HHInc_over150" = "> 150k")) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     # labels = as.character(2010:2023),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Household Income Breakdown of Population from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Count",
+       color = "Age Category:",
+       fill = "Age Category:") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = "#260c03FF"),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"),
+        legend.position = "top",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        legend.key.size = unit(.5, "line"))
+
+inc_dist_plot
+
+# save image
+# ggsave("images/250408_inc_dist.png",
+#        plot = inc_dist_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+### Rent Burden: Gross Rent as Percentage of Household Income (GRAPI)
+
+How has gross rent as percentage of household income (GRAPI) in the region changed from 2010-2023?
+
+```{r rent_burden}
+# 4 levels of rent burden (GRAPI)
+  # < 10%
+  # 10 - 29%
+  # 30 - 49%
+  # > 50%
+
+rent_burden <- chinatown_bothtracts %>% 
+  select(matches("year|GRAPI")) %>% 
+  select(year, GRAPI_10orless, GRAPI_10_29, GRAPI_30_49, GRAPI_50ormore) %>% 
+  group_by(year) %>% 
+  summarize(GRAPI_10orless = sum(GRAPI_10orless),
+            GRAPI_10_29 = sum(GRAPI_10_29),
+            GRAPI_30_49 = sum(GRAPI_30_49),
+            GRAPI_50ormore = sum(GRAPI_50ormore)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = GRAPI_10orless:GRAPI_50ormore,
+               names_to = "rent_burden_class",
+               values_to = "count") %>% 
+  mutate(rent_burden_class = factor(rent_burden_class, levels = c("GRAPI_10orless", "GRAPI_10_29", "GRAPI_30_49", "GRAPI_50ormore")))
+
+rent_burden_plot <- rent_burden %>% 
+  ggplot(aes(x = year, y = count, alluvium = rent_burden_class)) +
+  
+  # make alluvial plot
+  geom_alluvium(aes(fill = rent_burden_class, color = rent_burden_class),
+                alpha = .75, decreasing = FALSE
+                ) +
+  
+  scale_fill_manual(values = c("GRAPI_10orless" = colors[7],
+                               "GRAPI_10_29" = colors[6],
+                               "GRAPI_30_49" = colors[5],
+                               "GRAPI_50ormore" = colors[2]),
+                    labels = c("GRAPI_10orless" = "< 10%",
+                               "GRAPI_10_29" = "10 - 29%",
+                               "GRAPI_30_49" = "30 - 49%",
+                               "GRAPI_50ormore" = "> 50%")) +
+  scale_color_manual(values = c("GRAPI_10orless" = colors[7],
+                               "GRAPI_10_29" = colors[6],
+                               "GRAPI_30_49" = colors[5],
+                               "GRAPI_50ormore" = colors[2]),
+                     labels = c("GRAPI_10orless" = "< 10%",
+                                "GRAPI_10_29" = "10 - 29%",
+                                "GRAPI_30_49" = "30 - 49%",
+                                "GRAPI_50ormore" = "> 50%")) +
+  
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2010, 2023, 1),
+                     # labels = as.character(2010:2023),
+                     limits = c(2010, 2023),
+                     expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Rent Burden of Population from 2010-2023",
+       subtitle = "Chinatown (Census Tracts 2 and 376), Philadelphia, PA",
+       x = "Year",
+       y = "Count",
+       color = "GRAPI:",
+       fill = "GRAPI:") +
+  theme(plot.title = element_text(face = "bold",
+                                  color = "#260c03FF"),
+        plot.margin = unit(c(.5,.5,.5,.5), "cm"),
+        legend.position = "top",
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 9),
+        legend.key.size = unit(.5, "line"))
+
+rent_burden_plot
+
+# save image
+# ggsave("images/250408_rent_burden.png",
+#        plot = rent_burden_plot,
+#        height = 7, width = 10, units = "in")
+
+```
+
+
+
+## Non-Census Data
+
+Here, I load in data like bikelanes, the shape of Philadelphia tracts, and SEPTA data. For now, some SEPTA data (specifically the BSL-related ones) seems to be missing.
+
+```{r load_noncensus_data}
+# study area defintion using block groups
+blockgroups <- st_read("~/Documents/MUSA/Spring25/MUSA8010_Practicum/Chinatown-Practicum/data/Philly_blockgroup.shp") %>%
+  st_transform(crs = my_crs)
+
+# philly bounds
+philly_bounds <- st_union(blockgroups)
+
+# define chinatown by tract
+chinatown_tracts <- blockgroups %>% 
+  filter(TRACT %in% c("000200","037600"))
+
+chinatown <- st_union(chinatown_tracts)
+
+# philly hydrology
+hydro <- st_read("https://services.arcgis.com/fLeGjb7u4uXqeF9q/arcgis/rest/services/Hydrographic_Features_Poly/FeatureServer/1/query?outFields=*&where=1%3D1&f=geojson") %>%
+  st_transform(crs = my_crs) %>% 
+  st_intersection(philly_bounds)
+
+# PA state roads
+roads <- st_read("~/Documents/MUSA/Spring25/MUSA8010_Practicum/Chinatown-Practicum/data/PaStateRoads2024_03.geojson") %>% 
+  st_transform(crs = my_crs) %>% 
+  st_intersection(st_buffer(chinatown, 100))
+
+# bike lanes
+bikelanes <- st_read("https://hub.arcgis.com/api/v3/datasets/b5f660b9f0f44ced915995b6d49f6385_0/downloads/data?format=geojson&spatialRefId=4326&where=1%3D1") %>% 
+  st_transform(crs = my_crs) %>% 
+  st_intersection(st_buffer(chinatown, 100))
+
+# SEPTA
+busstops <- st_read("~/Downloads/Fall_2023_Stop_Summary_(Bus).geojson") %>% 
+  st_transform(crs = my_crs) %>% 
+  st_intersection(st_buffer(chinatown, 100))
+
+busroutes <- st_read("~/Downloads/Transit_Routes_(Spring_2025).geojson") %>% 
+  st_transform(crs = my_crs) %>% 
+  st_intersection(st_buffer(chinatown, 100))
+
+# bsl <- st_read(" ") %>% # still need to find the right dataset
+#   st_transform(crs = my_crs)
+
+metro <- st_read("https://opendata.arcgis.com/api/v3/datasets/af52d74b872045d0abb4a6bbbb249453_0/downloads/data?format=geojson&spatialRefId=4326") %>%
+  st_transform(crs = my_crs) %>% 
+  st_intersection(st_buffer(chinatown, 100))
+
+```
+
+```{r studyarea_map}
+# code from practicum
+philly_plot <- ggplot() +
+  geom_sf(data = blockgroups, fill = "transparent", color = "grey90", linewidth = .2) +
+  geom_sf(data = chinatown, fill = "#CD4F38FF", color = "#CD4F38FF") +
+  geom_sf(data = hydro, fill = "#b4c8fa", color = "transparent") + #b4c8fa
+  geom_sf(data = philly_bounds, fill = "transparent", color = "grey", linewidth = .5) +
+  theme_void() +
+  labs(title = "Situating Philadelphia's Chinatown",
+       caption = "Source: ACS Census Data") +
+  theme(plot.title = element_text(size = 16, face = "bold", 
+                                  color = "#06141FFF"),
+        plot.caption = element_text(hjust = 0, margin = margin(t = 10)))
+
+chinatown_plot <- ggplot() +
+  geom_sf(data = chinatown, fill = alpha("#CD4F38FF", .2), color = "grey", linewidth = .5) +
+  geom_sf(data = chinatown_tracts %>% 
+            filter(TRACT == "000200"), 
+          fill = alpha("#CD4F38FF", .2), color = "#CD4F38FF", linewidth = .25, linetype = "dashed") +
+  geom_sf(data = chinatown_tracts %>% 
+            filter(TRACT != "000200"), 
+          fill = alpha("#742C14FF", .2), color = "#742C14FF", linewidth = .25, linetype = "dashed") +
+  
+  # add annotations
+  geom_text(aes(label = "Tract 2",
+                x = 2695349,
+                y = 237288.4),
+            face = "bold", size = 17,
+            color = "#CD4F38FF") +
+  geom_text(aes(label = "Tract 376",
+                x = 2695747,
+                y = 238968.4),
+            face = "bold", size = 17,
+            color = "#742C14FF") +
+  theme_void()
+# what else do we put on this map of Chinatown? is it ok that it's very empty?
+
+philly_plot | chinatown_plot
+
+# ggsave("images/250408_studyarea.png",
+#        height = 7, width = 10, units = "in")
+
+```
+
+```{r trains_buses}
+trains_buses <- ggplot() +
+  geom_sf(data = chinatown, fill = "white") +
+  geom_sf(data = roads, color = "grey60", linewidth = .2) +
+  geom_sf(data = busroutes, color = "#3D4F7DFF", linewidth = .85) +
+  geom_sf(data = bikelanes, color = "#EAD890FF", linewidth = .75) +
+  # geom_sf(data = chinatown, fill = "transparent", color = "gray90", linewidth = 2, linetype = "dashed") +
+  geom_sf(data = busstops, color = "#3D4F7DFF", size = 2) +
+  geom_sf(data = metro, color = "#E48C2AFF", size = 4) +
+  theme_void() +
+  labs(title = "Transportation in Chinatown",
+       subtitle = "<span style='color:#E48C2AFF;'>Train Stations</span>, <span style='color:#3D4F7DFF;'>Bus Routes</span>, and <span style='color:#EAD890FF;'>Bike lanes</span>"
+  ) +
+  theme(plot.title = element_text(size = 16, face = "bold", color = colors[1]),
+        plot.subtitle = element_markdown(size = 10, hjust = 0))
+
+trains_buses
+
+# ggsave("images/250408_transportation.png",
+#        plot = trains_buses,
+#        height = 7, width = 10, units = "in")
+
+```
+
